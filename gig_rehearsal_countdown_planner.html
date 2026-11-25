@@ -1,0 +1,1289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Setlist Clock — Constellation Countdown</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+          },
+          fontVariantNumeric: {
+            tabular: 'tabular-nums',
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .tabular-nums {
+      font-variant-numeric: tabular-nums;
+    }
+    /* Custom subtle scrollbar for horizontal filter strips */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 antialiased selection:bg-amber-400 selection:text-slate-950 min-h-screen">
+  <!-- App Container -->
+  <div id="app" class="max-w-md mx-auto min-h-screen flex flex-col pb-24 px-4 pt-4">
+    <!-- Header -->
+    <header class="flex items-center justify-between gap-2 mb-4">
+      <div class="flex items-center gap-2.5 min-w-0">
+        <div class="w-9 h-9 rounded-2xl bg-amber-400/15 border border-amber-400/40 flex items-center justify-center shrink-0 text-amber-300">
+          <!-- Inline SVG music note / clock mark -->
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="9"></circle>
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 7v5l3 2"></path>
+          </svg>
+        </div>
+        <div class="min-w-0">
+          <h1 class="text-lg font-extrabold tracking-tight text-white truncate">Practice Priority</h1>
+          <p id="live-clock-sub" class="text-xs text-slate-400 tabular-nums truncate">Syncing live countdowns...</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-1.5 shrink-0">
+        <!-- Theme toggle -->
+        <button
+          id="theme-toggle-btn"
+          type="button"
+          aria-label="Toggle light or dark theme"
+          class="p-2.5 rounded-2xl bg-slate-900 hover:bg-slate-800 active:scale-95 border border-slate-800 text-slate-300 transition"
+          title="Switch theme"
+        >
+          <svg id="icon-sun" class="w-4 h-4 hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>
+          </svg>
+          <svg id="icon-moon" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>
+          </svg>
+        </button>
+
+        <!-- Overflow / Data Menu button -->
+        <button
+          id="menu-toggle-btn"
+          type="button"
+          aria-label="More options"
+          class="p-2.5 rounded-2xl bg-slate-900 hover:bg-slate-800 active:scale-95 border border-slate-800 text-slate-300 transition"
+          title="Data & Archive options"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6h.01M12 12h.01M12 18h.01"></path>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Collapsible Utility Drawer (Reset samples / Clear / View Archived) -->
+    <div id="utility-drawer" class="hidden mb-4 p-3.5 rounded-3xl bg-slate-900 border border-slate-800 space-y-2.5">
+      <div class="flex items-center justify-between">
+        <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Library & Data</span>
+        <button id="close-drawer-btn" type="button" class="text-xs text-slate-400 hover:text-white px-2 py-1 rounded-xl">Close</button>
+      </div>
+      <div class="grid grid-cols-2 gap-2">
+        <button
+          id="toggle-archive-view-btn"
+          type="button"
+          class="py-2.5 px-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 transition text-center"
+        >
+          View Done (<span id="archived-count-label">0</span>)
+        </button>
+        <button
+          id="reset-samples-btn"
+          type="button"
+          class="py-2.5 px-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-amber-300 transition text-center"
+        >
+          Restore Samples
+        </button>
+      </div>
+      <button
+        id="clear-all-btn"
+        type="button"
+        class="w-full py-2.5 px-3 rounded-2xl bg-rose-950/60 hover:bg-rose-900/70 border border-rose-800/50 text-xs font-semibold text-rose-300 transition"
+      >
+        Clear All Upcoming Occasions
+      </button>
+    </div>
+
+    <!-- Inline Status Banner (non-blocking replacement for alerts/confirms) -->
+    <div id="status-banner" class="hidden mb-3 px-3.5 py-2.5 rounded-2xl bg-slate-800 border border-amber-400/40 text-xs text-amber-200 flex items-center justify-between gap-2">
+      <span id="status-banner-text"></span>
+      <button id="status-banner-dismiss" type="button" class="text-amber-300 hover:text-white font-semibold shrink-0">Dismiss</button>
+    </div>
+
+    <!-- #1 Practice Focus Card -->
+    <section id="focus-section" aria-label="Primary Practice Focus" class="mb-4">
+      <!-- Populated dynamically by JavaScript -->
+    </section>
+
+    <!-- Filter Controls -->
+    <section aria-label="Filter Occasions" class="mb-4 space-y-2.5">
+      <!-- Type Tabs -->
+      <div class="grid grid-cols-3 gap-1.5 p-1 rounded-2xl bg-slate-900 border border-slate-800">
+        <button
+          type="button"
+          data-type-filter="all"
+          class="type-filter-btn py-2 px-2 rounded-xl text-xs font-bold transition bg-amber-400 text-slate-950 shadow-sm"
+        >
+          All (<span id="count-all">0</span>)
+        </button>
+        <button
+          type="button"
+          data-type-filter="show"
+          class="type-filter-btn py-2 px-2 rounded-xl text-xs font-semibold transition text-slate-400 hover:text-white"
+        >
+          Shows (<span id="count-show">0</span>)
+        </button>
+        <button
+          type="button"
+          data-type-filter="rehearsal"
+          class="type-filter-btn py-2 px-2 rounded-xl text-xs font-semibold transition text-slate-400 hover:text-white"
+        >
+          Rehearsals (<span id="count-rehearsal">0</span>)
+        </button>
+      </div>
+
+      <!-- Constellation Filter Chips -->
+      <div id="constellation-filter-row" class="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
+        <!-- Populated dynamically -->
+      </div>
+    </section>
+
+    <!-- Occasions List -->
+    <section aria-label="Upcoming Countdowns" class="space-y-3 flex-1">
+      <div class="flex items-center justify-between px-1">
+        <h2 id="list-heading" class="text-xs font-bold uppercase tracking-wider text-slate-400">Sorted by Soonest</h2>
+        <span id="list-subcount" class="text-xs text-slate-500 tabular-nums"></span>
+      </div>
+      <div id="occasions-list" class="space-y-3">
+        <!-- Populated dynamically -->
+      </div>
+    </section>
+
+    <!-- Floating Primary Add Button (Easy thumb reach) -->
+    <div class="fixed bottom-5 left-0 right-0 px-4 pointer-events-none z-30">
+      <div class="max-w-md mx-auto flex justify-end pointer-events-auto">
+        <button
+          id="open-add-modal-btn"
+          type="button"
+          class="flex items-center gap-2 px-5 py-3.5 rounded-full bg-amber-400 hover:bg-amber-300 active:scale-95 text-slate-950 font-extrabold text-sm shadow-lg shadow-amber-500/20 transition"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"></path>
+          </svg>
+          <span>Add Occasion</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add / Edit Occasion Modal Sheet -->
+  <div id="occasion-modal" class="fixed inset-0 z-40 hidden bg-slate-950/80 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div
+      id="occasion-modal-card"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-title"
+      class="w-full max-w-md bg-slate-900 border-t sm:border border-slate-800 rounded-t-3xl sm:rounded-3xl p-5 space-y-4 max-h-[92vh] overflow-y-auto shadow-2xl"
+    >
+      <div class="flex items-center justify-between">
+        <h2 id="modal-title" class="text-lg font-extrabold text-white">New Occasion</h2>
+        <button
+          id="close-modal-btn"
+          type="button"
+          aria-label="Close modal"
+          class="p-2 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+
+      <form id="occasion-form" class="space-y-4">
+        <input type="hidden" id="edit-id-input" />
+
+        <!-- Type Selector: Show vs Rehearsal -->
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Type</label>
+          <div class="grid grid-cols-2 gap-2.5">
+            <button
+              type="button"
+              id="type-choice-show"
+              data-type="show"
+              class="type-choice-btn flex items-center justify-center gap-2 py-3 px-3 rounded-2xl border-2 border-amber-400 bg-amber-400/15 text-amber-200 font-bold text-sm transition"
+            >
+              <span>Show</span>
+            </button>
+            <button
+              type="button"
+              id="type-choice-rehearsal"
+              data-type="rehearsal"
+              class="type-choice-btn flex items-center justify-center gap-2 py-3 px-3 rounded-2xl border border-slate-700 bg-slate-800/70 text-slate-300 font-semibold text-sm transition"
+            >
+              <span>Rehearsal</span>
+            </button>
+          </div>
+          <input type="hidden" id="type-input" value="show" />
+        </div>
+
+        <!-- Constellation Name + Quick Chips -->
+        <div>
+          <label for="constellation-input" class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+            Constellation / Project
+          </label>
+          <input
+            id="constellation-input"
+            type="text"
+            required
+            maxlength="50"
+            placeholder="e.g. Nordic Brass Quintet, Late Trio, Jam..."
+            class="w-full px-3.5 py-3 rounded-2xl bg-slate-950 border border-slate-700 focus:border-amber-400 focus:outline-none text-sm text-white placeholder:text-slate-500"
+          />
+          <div id="quick-constellation-chips" class="flex flex-wrap gap-1.5 mt-2">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+
+        <!-- Optional Title / Venue / Focus Note -->
+        <div>
+          <label for="note-input" class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+            Practice Focus / Venue Note <span class="text-slate-500 font-normal normal-case">(optional)</span>
+          </label>
+          <input
+            id="note-input"
+            type="text"
+            maxlength="90"
+            placeholder="e.g. Bridge dynamics, chart #4, Café Scala..."
+            class="w-full px-3.5 py-3 rounded-2xl bg-slate-950 border border-slate-700 focus:border-amber-400 focus:outline-none text-sm text-white placeholder:text-slate-500"
+          />
+        </div>
+
+        <!-- Date and Time -->
+        <div class="grid grid-cols-2 gap-2.5">
+          <div>
+            <label for="date-input" class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+              Date
+            </label>
+            <input
+              id="date-input"
+              type="date"
+              required
+              class="w-full px-3 py-3 rounded-2xl bg-slate-950 border border-slate-700 focus:border-amber-400 focus:outline-none text-sm text-white tabular-nums"
+            />
+          </div>
+          <div>
+            <label for="time-input" class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+              Time
+            </label>
+            <input
+              id="time-input"
+              type="time"
+              required
+              class="w-full px-3 py-3 rounded-2xl bg-slate-950 border border-slate-700 focus:border-amber-400 focus:outline-none text-sm text-white tabular-nums"
+            />
+          </div>
+        </div>
+
+        <div id="form-error" class="hidden text-xs font-medium text-rose-400 px-1"></div>
+
+        <div class="pt-1 flex items-center gap-2.5">
+          <button
+            type="button"
+            id="cancel-form-btn"
+            class="flex-1 py-3.5 px-4 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-sm transition"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            class="flex-[2] py-3.5 px-4 rounded-2xl bg-amber-400 hover:bg-amber-300 active:scale-[0.99] text-slate-950 font-extrabold text-sm transition shadow-md shadow-amber-500/15"
+          >
+            Save Countdown
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    /**
+     * Practice Priority — Constellation Countdown App
+     * Self-contained single-file implementation with localStorage persistence,
+     * live countdown formatting, urgency hierarchy, constellation filtering,
+     * and one-handed mobile layout.
+     */
+    (function () {
+      'use strict';
+
+      const STORAGE_KEY = 'practice_priority_occasions_v1';
+      const THEME_KEY = 'practice_priority_theme_v1';
+
+      // Default constellations to offer as quick chips even when starting fresh
+      const BASE_CONSTELLATIONS = [
+        'Midnight Quartet',
+        'Acoustic Duo',
+        'Wednesday Jam',
+        'Chamber Collective'
+      ];
+
+      /**
+       * Creates realistic sample shows and rehearsals relative to current time
+       * so the countdowns feel immediately meaningful on first load.
+       */
+      function createSampleOccasions() {
+        const now = Date.now();
+        const hour = 60 * 60 * 1000;
+        const day = 24 * hour;
+
+        return [
+          {
+            id: 'sample-1',
+            constellation: 'Midnight Quartet',
+            type: 'rehearsal',
+            note: 'Tighten intro groove & horn hits on Set A',
+            timestamp: now + 18 * hour,
+            archived: false
+          },
+          {
+            id: 'sample-2',
+            constellation: 'Midnight Quartet',
+            type: 'show',
+            note: 'Södra Teatern — Soundcheck 18:00',
+            timestamp: now + 2 * day + 6 * hour,
+            archived: false
+          },
+          {
+            id: 'sample-3',
+            constellation: 'Acoustic Duo',
+            type: 'rehearsal',
+            note: 'Work out harmonies for two new ballads',
+            timestamp: now + 4 * day + 3 * hour,
+            archived: false
+          },
+          {
+            id: 'sample-4',
+            constellation: 'Wednesday Jam',
+            type: 'rehearsal',
+            note: 'Brush up modal vamp changes & lead charts',
+            timestamp: now + 7 * day + 2 * hour,
+            archived: false
+          },
+          {
+            id: 'sample-5',
+            constellation: 'Chamber Collective',
+            type: 'show',
+            note: 'Winter Matinee — Dress rehearsal notes',
+            timestamp: now + 12 * day + 5 * hour,
+            archived: false
+          }
+        ];
+      }
+
+      // Application State
+      let state = {
+        occasions: [],
+        typeFilter: 'all', // 'all' | 'show' | 'rehearsal'
+        constellationFilter: 'all', // 'all' or constellation string
+        showArchived: false,
+        darkMode: true,
+        confirmClearPending: false
+      };
+
+      // DOM References
+      const els = {
+        body: document.body,
+        liveClockSub: document.getElementById('live-clock-sub'),
+        themeToggleBtn: document.getElementById('theme-toggle-btn'),
+        iconSun: document.getElementById('icon-sun'),
+        iconMoon: document.getElementById('icon-moon'),
+        menuToggleBtn: document.getElementById('menu-toggle-btn'),
+        utilityDrawer: document.getElementById('utility-drawer'),
+        closeDrawerBtn: document.getElementById('close-drawer-btn'),
+        toggleArchiveViewBtn: document.getElementById('toggle-archive-view-btn'),
+        archivedCountLabel: document.getElementById('archived-count-label'),
+        resetSamplesBtn: document.getElementById('reset-samples-btn'),
+        clearAllBtn: document.getElementById('clear-all-btn'),
+        statusBanner: document.getElementById('status-banner'),
+        statusBannerText: document.getElementById('status-banner-text'),
+        statusBannerDismiss: document.getElementById('status-banner-dismiss'),
+        focusSection: document.getElementById('focus-section'),
+        countAll: document.getElementById('count-all'),
+        countShow: document.getElementById('count-show'),
+        countRehearsal: document.getElementById('count-rehearsal'),
+        constellationFilterRow: document.getElementById('constellation-filter-row'),
+        listHeading: document.getElementById('list-heading'),
+        listSubcount: document.getElementById('list-subcount'),
+        occasionsList: document.getElementById('occasions-list'),
+        openAddModalBtn: document.getElementById('open-add-modal-btn'),
+        modal: document.getElementById('occasion-modal'),
+        modalTitle: document.getElementById('modal-title'),
+        closeModalBtn: document.getElementById('close-modal-btn'),
+        cancelFormBtn: document.getElementById('cancel-form-btn'),
+        form: document.getElementById('occasion-form'),
+        editIdInput: document.getElementById('edit-id-input'),
+        typeInput: document.getElementById('type-input'),
+        typeChoiceShow: document.getElementById('type-choice-show'),
+        typeChoiceRehearsal: document.getElementById('type-choice-rehearsal'),
+        constellationInput: document.getElementById('constellation-input'),
+        quickConstellationChips: document.getElementById('quick-constellation-chips'),
+        noteInput: document.getElementById('note-input'),
+        dateInput: document.getElementById('date-input'),
+        timeInput: document.getElementById('time-input'),
+        formError: document.getElementById('form-error')
+      };
+
+      /**
+       * Shows a friendly non-blocking banner message instead of browser alert().
+       */
+      function showBanner(message) {
+        els.statusBannerText.textContent = message;
+        els.statusBanner.classList.remove('hidden');
+      }
+
+      function hideBanner() {
+        els.statusBanner.classList.add('hidden');
+      }
+
+      /**
+       * Persists occasions safely in localStorage with fallback handling.
+       */
+      function saveOccasions() {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(state.occasions));
+        } catch (err) {
+          showBanner('Could not save changes to local storage.');
+        }
+      }
+
+      /**
+       * Loads occasions from localStorage or seeds sample data on first visit.
+       */
+      function loadOccasions() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (raw === null) {
+            state.occasions = createSampleOccasions();
+            saveOccasions();
+          } else {
+            const parsed = JSON.parse(raw);
+            state.occasions = Array.isArray(parsed) ? parsed : [];
+          }
+        } catch (err) {
+          state.occasions = createSampleOccasions();
+          showBanner('Recovered with starter sample schedule.');
+        }
+      }
+
+      /**
+       * Applies dark or light theme classes across the document.
+       */
+      function applyTheme() {
+        const isDark = state.darkMode;
+        if (isDark) {
+          els.body.classList.remove('bg-stone-100', 'text-slate-900');
+          els.body.classList.add('bg-slate-950', 'text-slate-100');
+          els.iconSun.classList.remove('hidden');
+          els.iconMoon.classList.add('hidden');
+        } else {
+          els.body.classList.remove('bg-slate-950', 'text-slate-100');
+          els.body.classList.add('bg-stone-100', 'text-slate-900');
+          els.iconSun.classList.add('hidden');
+          els.iconMoon.classList.remove('hidden');
+        }
+
+        // Adjust surface cards for light mode readability
+        const surfaceSelectors = [
+          '#utility-drawer',
+          '#occasion-modal-card'
+        ];
+        surfaceSelectors.forEach((sel) => {
+          const el = document.querySelector(sel);
+          if (!el) return;
+          if (isDark) {
+            el.classList.remove('bg-white', 'border-stone-200', 'text-slate-900');
+            el.classList.add('bg-slate-900', 'border-slate-800');
+          } else {
+            el.classList.remove('bg-slate-900', 'border-slate-800');
+            el.classList.add('bg-white', 'border-stone-200', 'text-slate-900');
+          }
+        });
+
+        try {
+          localStorage.setItem(THEME_KEY, isDark ? 'dark' : 'light');
+        } catch (_) {
+          // Ignore storage quota issues
+        }
+      }
+
+      function loadTheme() {
+        try {
+          const saved = localStorage.getItem(THEME_KEY);
+          state.darkMode = saved === 'light' ? false : true;
+        } catch (_) {
+          state.darkMode = true;
+        }
+        applyTheme();
+      }
+
+      /**
+       * Returns active (non-archived) occasions sorted nearest-first.
+       */
+      function getSortedActiveOccasions() {
+        return state.occasions
+          .filter((item) => !item.archived)
+          .slice()
+          .sort((a, b) => a.timestamp - b.timestamp);
+      }
+
+      function getSortedArchivedOccasions() {
+        return state.occasions
+          .filter((item) => item.archived)
+          .slice()
+          .sort((a, b) => b.timestamp - a.timestamp);
+      }
+
+      /**
+       * Computes human-readable countdown label, short badge, and urgency level.
+       * Urgency tiers:
+       *  - 'critical': within 48 hours or past due
+       *  - 'soon': within 7 days
+       *  - 'upcoming': more than 7 days out
+       */
+      function getCountdownInfo(timestamp, now = Date.now()) {
+        const diffMs = timestamp - now;
+        const absMs = Math.abs(diffMs);
+        const totalMinutes = Math.floor(absMs / (60 * 1000));
+        const totalHours = Math.floor(absMs / (60 * 60 * 1000));
+        const totalDays = Math.floor(absMs / (24 * 60 * 60 * 1000));
+        const remHours = totalHours - totalDays * 24;
+
+        const dateObj = new Date(timestamp);
+        const timeStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const dayStr = dateObj.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+
+        if (diffMs <= 0) {
+          return {
+            headline: totalMinutes < 60 ? 'Starting / Just passed' : `Passed ${totalDays > 0 ? totalDays + 'd' : totalHours + 'h'} ago`,
+            detail: `${dayStr} · ${timeStr}`,
+            urgency: 'critical',
+            isPast: true
+          };
+        }
+
+        if (diffMs < 60 * 60 * 1000) {
+          const mins = Math.max(1, totalMinutes);
+          return {
+            headline: `In ${mins} min`,
+            detail: `Today · ${timeStr}`,
+            urgency: 'critical',
+            isPast: false
+          };
+        }
+
+        if (diffMs < 24 * 60 * 60 * 1000) {
+          return {
+            headline: `Today · in ${totalHours}h`,
+            detail: `${dayStr} · ${timeStr}`,
+            urgency: 'critical',
+            isPast: false
+          };
+        }
+
+        if (diffMs < 48 * 60 * 60 * 1000) {
+          return {
+            headline: remHours > 0 ? `In 1d ${remHours}h` : 'Tomorrow',
+            detail: `${dayStr} · ${timeStr}`,
+            urgency: 'critical',
+            isPast: false
+          };
+        }
+
+        if (totalDays < 7) {
+          return {
+            headline: `In ${totalDays} days`,
+            detail: `${dayStr} · ${timeStr}`,
+            urgency: 'soon',
+            isPast: false
+          };
+        }
+
+        const weeks = Math.floor(totalDays / 7);
+        const extraDays = totalDays % 7;
+        const headline = extraDays > 0 ? `In ${weeks}w ${extraDays}d` : `In ${totalDays} days`;
+
+        return {
+          headline,
+          detail: `${dayStr} · ${timeStr}`,
+          urgency: 'upcoming',
+          isPast: false
+        };
+      }
+
+      /**
+       * Escapes HTML special characters for safe template insertion.
+       */
+      function escapeHtml(str) {
+        return String(str || '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      /**
+       * Renders the #1 Practice Focus card at the top, highlighting the soonest occasion
+       * and alerting if another occasion falls within 48 hours of it (tight cluster).
+       */
+      function renderFocusSection(now = Date.now()) {
+        if (state.showArchived) {
+          els.focusSection.innerHTML = '';
+          return;
+        }
+
+        const active = getSortedActiveOccasions();
+        if (active.length === 0) {
+          els.focusSection.innerHTML = `
+            <div class="rounded-3xl p-4 border ${state.darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-stone-200'}">
+              <p class="text-xs font-bold uppercase tracking-wider text-amber-400 mb-1">Practice Focus</p>
+              <p class="text-sm font-semibold ${state.darkMode ? 'text-slate-200' : 'text-slate-800'}">No upcoming occasions queued</p>
+              <p class="text-xs ${state.darkMode ? 'text-slate-400' : 'text-slate-600'} mt-0.5">Tap "+ Add Occasion" below to set your next show or rehearsal countdown.</p>
+            </div>
+          `;
+          return;
+        }
+
+        const top = active[0];
+        const info = getCountdownInfo(top.timestamp, now);
+
+        // Detect tight clusters (occasions within 48 hours of the #1 item)
+        const clusterItems = active.slice(1).filter((item) => Math.abs(item.timestamp - top.timestamp) <= 48 * 60 * 60 * 1000);
+        const clusterBadge = clusterItems.length > 0
+          ? `<div class="mt-3 pt-2.5 border-t ${state.darkMode ? 'border-amber-400/20 text-amber-200' : 'border-amber-500/20 text-amber-900'} text-xs flex items-center justify-between gap-2">
+               <span class="font-semibold">Tight window: +${clusterItems.length} more within 48h</span>
+               <span class="truncate font-medium opacity-90">${escapeHtml(clusterItems[0].constellation)}</span>
+             </div>`
+          : '';
+
+        const typePill = top.type === 'show'
+          ? '<span class="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wide bg-amber-400 text-slate-950">Show</span>'
+          : '<span class="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wide bg-sky-400 text-slate-950">Rehearsal</span>';
+
+        const cardSurface = state.darkMode
+          ? 'bg-gradient-to-br from-amber-500/15 via-slate-900 to-slate-900 border-amber-400/40'
+          : 'bg-gradient-to-br from-amber-100 via-white to-white border-amber-400';
+
+        els.focusSection.innerHTML = `
+          <div class="rounded-3xl p-4 border-2 ${cardSurface} shadow-lg">
+            <div class="flex items-center justify-between gap-2 mb-2">
+              <span class="text-[11px] font-extrabold uppercase tracking-wider text-amber-400">Prioritize Practice Now</span>
+              ${typePill}
+            </div>
+            <div class="flex items-baseline justify-between gap-3">
+              <div class="min-w-0">
+                <h2 class="text-xl font-extrabold tracking-tight truncate ${state.darkMode ? 'text-white' : 'text-slate-900'}">
+                  ${escapeHtml(top.constellation)}
+                </h2>
+                <p class="text-xs ${state.darkMode ? 'text-slate-300' : 'text-slate-600'} mt-0.5 truncate">
+                  ${top.note ? escapeHtml(top.note) : info.detail}
+                </p>
+              </div>
+              <div class="text-right shrink-0">
+                <div class="text-lg font-extrabold tabular-nums ${state.darkMode ? 'text-amber-300' : 'text-amber-700'}">
+                  ${escapeHtml(info.headline)}
+                </div>
+                <div class="text-[11px] tabular-nums ${state.darkMode ? 'text-slate-400' : 'text-slate-500'}">
+                  ${escapeHtml(info.detail)}
+                </div>
+              </div>
+            </div>
+            ${clusterBadge}
+          </div>
+        `;
+      }
+
+      /**
+       * Updates type counts and renders horizontal constellation filter pills.
+       */
+      function renderFilters() {
+        const active = getSortedActiveOccasions();
+        const filteredByConstellation = state.constellationFilter === 'all'
+          ? active
+          : active.filter((o) => o.constellation === state.constellationFilter);
+
+        els.countAll.textContent = filteredByConstellation.length;
+        els.countShow.textContent = filteredByConstellation.filter((o) => o.type === 'show').length;
+        els.countRehearsal.textContent = filteredByConstellation.filter((o) => o.type === 'rehearsal').length;
+
+        // Highlight active type tab
+        document.querySelectorAll('.type-filter-btn').forEach((btn) => {
+          const isSelected = btn.getAttribute('data-type-filter') === state.typeFilter;
+          if (isSelected) {
+            btn.className = 'type-filter-btn py-2 px-2 rounded-xl text-xs font-bold transition bg-amber-400 text-slate-950 shadow-sm';
+          } else {
+            btn.className = `type-filter-btn py-2 px-2 rounded-xl text-xs font-semibold transition ${
+              state.darkMode ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-950'
+            }`;
+          }
+        });
+
+        // Gather unique constellations across all occasions + base defaults
+        const uniqueNames = Array.from(
+          new Set(state.occasions.map((o) => o.constellation).filter(Boolean))
+        );
+
+        const chips = ['all', ...uniqueNames];
+        els.constellationFilterRow.innerHTML = chips
+          .map((name) => {
+            const isSelected = state.constellationFilter === name;
+            const label = name === 'all' ? 'All Constellations' : name;
+            const activeClass = isSelected
+              ? 'bg-slate-100 text-slate-950 border-slate-100 font-bold'
+              : state.darkMode
+                ? 'bg-slate-900 text-slate-300 border-slate-800 hover:border-slate-700 font-medium'
+                : 'bg-white text-slate-700 border-stone-200 hover:border-stone-300 font-medium';
+
+            return `
+              <button
+                type="button"
+                data-constellation-chip="${escapeHtml(name)}"
+                class="constellation-chip shrink-0 px-3.5 py-2 rounded-2xl border text-xs transition active:scale-95 ${activeClass}"
+              >
+                ${escapeHtml(label)}
+              </button>
+            `;
+          })
+          .join('');
+      }
+
+      /**
+       * Renders the main countdown list (or archived items when toggled).
+       */
+      function renderList(now = Date.now()) {
+        const archivedItems = getSortedArchivedOccasions();
+        els.archivedCountLabel.textContent = archivedItems.length;
+
+        if (state.showArchived) {
+          els.listHeading.textContent = 'Completed & Archived';
+          els.listSubcount.textContent = `${archivedItems.length} item${archivedItems.length === 1 ? '' : 's'}`;
+
+          if (archivedItems.length === 0) {
+            els.occasionsList.innerHTML = `
+              <div class="rounded-3xl p-6 text-center border ${state.darkMode ? 'bg-slate-900/70 border-slate-800 text-slate-400' : 'bg-white border-stone-200 text-slate-600'}">
+                <p class="text-sm font-semibold">No completed occasions yet</p>
+                <p class="text-xs mt-1">Tap "Done" on an upcoming show or rehearsal to move it here.</p>
+              </div>
+            `;
+            return;
+          }
+
+          els.occasionsList.innerHTML = archivedItems
+            .map((item) => {
+              const dateLabel = new Date(item.timestamp).toLocaleString([], {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              });
+              const badge = item.type === 'show'
+                ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-amber-400/20 text-amber-300">Show</span>'
+                : '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-sky-400/20 text-sky-300">Rehearsal</span>';
+
+              return `
+                <article class="rounded-3xl p-4 border opacity-85 ${state.darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-stone-200'}">
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                      <div class="flex items-center gap-2 mb-1">
+                        ${badge}
+                        <span class="text-xs tabular-nums ${state.darkMode ? 'text-slate-400' : 'text-slate-500'}">${escapeHtml(dateLabel)}</span>
+                      </div>
+                      <h3 class="text-base font-bold truncate ${state.darkMode ? 'text-slate-200' : 'text-slate-900'}">${escapeHtml(item.constellation)}</h3>
+                      ${item.note ? `<p class="text-xs ${state.darkMode ? 'text-slate-400' : 'text-slate-600'} mt-0.5 truncate">${escapeHtml(item.note)}</p>` : ''}
+                    </div>
+                    <div class="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        data-restore-id="${escapeHtml(item.id)}"
+                        class="restore-btn px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-amber-300 transition"
+                      >
+                        Restore
+                      </button>
+                      <button
+                        type="button"
+                        data-delete-id="${escapeHtml(item.id)}"
+                        aria-label="Delete occasion"
+                        class="delete-btn p-2 rounded-xl bg-slate-800 hover:bg-rose-950 text-slate-400 hover:text-rose-300 transition"
+                      >
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              `;
+            })
+            .join('');
+          return;
+        }
+
+        const active = getSortedActiveOccasions().filter((item) => {
+          const matchesType = state.typeFilter === 'all' || item.type === state.typeFilter;
+          const matchesConstellation =
+            state.constellationFilter === 'all' || item.constellation === state.constellationFilter;
+          return matchesType && matchesConstellation;
+        });
+
+        els.listHeading.textContent = 'Sorted by Nearest Date';
+        els.listSubcount.textContent = `${active.length} upcoming`;
+
+        if (active.length === 0) {
+          els.occasionsList.innerHTML = `
+            <div class="rounded-3xl p-6 text-center border ${state.darkMode ? 'bg-slate-900/70 border-slate-800 text-slate-400' : 'bg-white border-stone-200 text-slate-600'}">
+              <p class="text-sm font-semibold">No matching occasions</p>
+              <p class="text-xs mt-1">Try switching filters or add a new show or rehearsal.</p>
+            </div>
+          `;
+          return;
+        }
+
+        els.occasionsList.innerHTML = active
+          .map((item, idx) => {
+            const info = getCountdownInfo(item.timestamp, now);
+            const isTopPriority = idx === 0 && state.typeFilter === 'all' && state.constellationFilter === 'all';
+
+            // Urgency border & badge styling
+            let urgencyBorder = state.darkMode ? 'border-slate-800' : 'border-stone-200';
+            let countdownColor = state.darkMode ? 'text-slate-100' : 'text-slate-900';
+
+            if (info.urgency === 'critical') {
+              urgencyBorder = state.darkMode ? 'border-rose-500/50' : 'border-rose-400';
+              countdownColor = state.darkMode ? 'text-rose-300' : 'text-rose-700';
+            } else if (info.urgency === 'soon') {
+              urgencyBorder = state.darkMode ? 'border-amber-400/40' : 'border-amber-400';
+              countdownColor = state.darkMode ? 'text-amber-300' : 'text-amber-700';
+            }
+
+            const typeBadge = item.type === 'show'
+              ? '<span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wide bg-amber-400/20 text-amber-300 border border-amber-400/30">Show</span>'
+              : '<span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wide bg-sky-400/20 text-sky-300 border border-sky-400/30">Rehearsal</span>';
+
+            const topTag = isTopPriority
+              ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-amber-400 text-slate-950">#1 Next</span>'
+              : '';
+
+            const cardBg = state.darkMode ? 'bg-slate-900' : 'bg-white';
+            const titleColor = state.darkMode ? 'text-white' : 'text-slate-900';
+            const noteColor = state.darkMode ? 'text-slate-400' : 'text-slate-600';
+
+            return `
+              <article class="rounded-3xl p-4 border ${urgencyBorder} ${cardBg} transition">
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-center flex-wrap gap-1.5 mb-1.5">
+                      ${topTag}
+                      ${typeBadge}
+                      <span class="text-xs font-medium tabular-nums ${noteColor}">${escapeHtml(info.detail)}</span>
+                    </div>
+                    <h3 class="text-base font-extrabold tracking-tight truncate ${titleColor}">
+                      ${escapeHtml(item.constellation)}
+                    </h3>
+                    ${item.note ? `<p class="text-xs ${noteColor} mt-1 leading-relaxed">${escapeHtml(item.note)}</p>` : ''}
+                  </div>
+
+                  <div class="text-right shrink-0">
+                    <div class="text-base font-extrabold tabular-nums ${countdownColor}">
+                      ${escapeHtml(info.headline)}
+                    </div>
+                    <div class="mt-2 flex items-center justify-end gap-1.5">
+                      <button
+                        type="button"
+                        data-edit-id="${escapeHtml(item.id)}"
+                        aria-label="Edit occasion"
+                        class="edit-btn px-2.5 py-1.5 rounded-xl text-xs font-semibold ${
+                          state.darkMode
+                            ? 'bg-slate-800 hover:bg-slate-700 text-slate-200'
+                            : 'bg-stone-100 hover:bg-stone-200 text-slate-700'
+                        } transition"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        data-archive-id="${escapeHtml(item.id)}"
+                        aria-label="Mark occasion as done"
+                        class="archive-btn px-2.5 py-1.5 rounded-xl text-xs font-semibold ${
+                          state.darkMode
+                            ? 'bg-emerald-950/70 hover:bg-emerald-900 text-emerald-300 border border-emerald-800/50'
+                            : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200'
+                        } transition"
+                      >
+                        Done
+                      </button>
+                      <button
+                        type="button"
+                        data-delete-id="${escapeHtml(item.id)}"
+                        aria-label="Delete occasion"
+                        class="delete-btn p-1.5 rounded-xl ${
+                          state.darkMode
+                            ? 'bg-slate-800 hover:bg-rose-950 text-slate-400 hover:text-rose-300'
+                            : 'bg-stone-100 hover:bg-rose-50 text-slate-500 hover:text-rose-700'
+                        } transition"
+                      >
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            `;
+          })
+          .join('');
+      }
+
+      /**
+       * Refreshes all UI views based on current timestamp.
+       */
+      function renderAll() {
+        const now = Date.now();
+        const nowDate = new Date(now);
+        els.liveClockSub.textContent = nowDate.toLocaleString([], {
+          weekday: 'short',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit'
+        });
+        renderFocusSection(now);
+        renderFilters();
+        renderList(now);
+      }
+
+      /**
+       * Sets the type choice visual state inside the Add/Edit modal.
+       */
+      function setModalType(type) {
+        const chosen = type === 'rehearsal' ? 'rehearsal' : 'show';
+        els.typeInput.value = chosen;
+
+        if (chosen === 'show') {
+          els.typeChoiceShow.className =
+            'type-choice-btn flex items-center justify-center gap-2 py-3 px-3 rounded-2xl border-2 border-amber-400 bg-amber-400/15 text-amber-200 font-bold text-sm transition';
+          els.typeChoiceRehearsal.className =
+            'type-choice-btn flex items-center justify-center gap-2 py-3 px-3 rounded-2xl border border-slate-700 bg-slate-800/70 text-slate-300 font-semibold text-sm transition';
+        } else {
+          els.typeChoiceRehearsal.className =
+            'type-choice-btn flex items-center justify-center gap-2 py-3 px-3 rounded-2xl border-2 border-sky-400 bg-sky-400/15 text-sky-200 font-bold text-sm transition';
+          els.typeChoiceShow.className =
+            'type-choice-btn flex items-center justify-center gap-2 py-3 px-3 rounded-2xl border border-slate-700 bg-slate-800/70 text-slate-300 font-semibold text-sm transition';
+        }
+      }
+
+      /**
+       * Renders quick-pick constellation chips inside the Add/Edit modal.
+       */
+      function renderQuickConstellationChips() {
+        const existing = Array.from(
+          new Set([...BASE_CONSTELLATIONS, ...state.occasions.map((o) => o.constellation).filter(Boolean)])
+        );
+
+        els.quickConstellationChips.innerHTML = existing
+          .map(
+            (name) => `
+              <button
+                type="button"
+                data-quick-constellation="${escapeHtml(name)}"
+                class="quick-chip px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-medium text-slate-200 transition"
+              >
+                ${escapeHtml(name)}
+              </button>
+            `
+          )
+          .join('');
+      }
+
+      /**
+       * Formats a timestamp into YYYY-MM-DD and HH:MM strings for date/time inputs.
+       */
+      function splitTimestampToInputs(ts) {
+        const d = new Date(ts);
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        const hh = String(d.getHours()).padStart(2, '0');
+        const min = String(d.getMinutes()).padStart(2, '0');
+        return {
+          dateStr: `${yyyy}-${mm}-${dd}`,
+          timeStr: `${hh}:${min}`
+        };
+      }
+
+      /**
+       * Opens modal for creating a new occasion or editing an existing one.
+       */
+      function openModal(itemToEdit = null) {
+        els.formError.classList.add('hidden');
+        els.formError.textContent = '';
+        renderQuickConstellationChips();
+
+        if (itemToEdit) {
+          els.modalTitle.textContent = 'Edit Occasion';
+          els.editIdInput.value = itemToEdit.id;
+          setModalType(itemToEdit.type);
+          els.constellationInput.value = itemToEdit.constellation;
+          els.noteInput.value = itemToEdit.note || '';
+          const parts = splitTimestampToInputs(itemToEdit.timestamp);
+          els.dateInput.value = parts.dateStr;
+          els.timeInput.value = parts.timeStr;
+        } else {
+          els.modalTitle.textContent = 'New Occasion';
+          els.editIdInput.value = '';
+          setModalType('show');
+          els.constellationInput.value =
+            state.constellationFilter !== 'all' ? state.constellationFilter : '';
+          els.noteInput.value = '';
+          const defaultParts = splitTimestampToInputs(Date.now() + 2 * 24 * 60 * 60 * 1000);
+          els.dateInput.value = defaultParts.dateStr;
+          els.timeInput.value = '19:00';
+        }
+
+        els.modal.classList.remove('hidden');
+        setTimeout(() => {
+          els.constellationInput.focus();
+        }, 50);
+      }
+
+      function closeModal() {
+        els.modal.classList.add('hidden');
+        els.form.reset();
+        els.editIdInput.value = '';
+      }
+
+      /**
+       * Handles form submission to add or update an occasion.
+       */
+      function handleFormSubmit(e) {
+        e.preventDefault();
+
+        const constellation = els.constellationInput.value.trim();
+        const type = els.typeInput.value === 'rehearsal' ? 'rehearsal' : 'show';
+        const note = els.noteInput.value.trim();
+        const dateVal = els.dateInput.value;
+        const timeVal = els.timeInput.value;
+        const editId = els.editIdInput.value.trim();
+
+        if (!constellation) {
+          els.formError.textContent = 'Please enter a constellation or band name.';
+          els.formError.classList.remove('hidden');
+          return;
+        }
+
+        if (!dateVal || !timeVal) {
+          els.formError.textContent = 'Please select both a date and time.';
+          els.formError.classList.remove('hidden');
+          return;
+        }
+
+        const combinedDate = new Date(`${dateVal}T${timeVal}`);
+        const timestamp = combinedDate.getTime();
+
+        if (Number.isNaN(timestamp)) {
+          els.formError.textContent = 'Invalid date or time value.';
+          els.formError.classList.remove('hidden');
+          return;
+        }
+
+        if (editId) {
+          state.occasions = state.occasions.map((item) =>
+            item.id === editId
+              ? { ...item, constellation, type, note, timestamp }
+              : item
+          );
+          showBanner(`Updated ${constellation}.`);
+        } else {
+          const newItem = {
+            id: `occ-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            constellation,
+            type,
+            note,
+            timestamp,
+            archived: false
+          };
+          state.occasions.push(newItem);
+          showBanner(`Added ${type} for ${constellation}.`);
+        }
+
+        saveOccasions();
+        closeModal();
+        renderAll();
+      }
+
+      // Event Listeners
+      els.themeToggleBtn.addEventListener('click', () => {
+        state.darkMode = !state.darkMode;
+        applyTheme();
+        renderAll();
+      });
+
+      els.menuToggleBtn.addEventListener('click', () => {
+        els.utilityDrawer.classList.toggle('hidden');
+      });
+
+      els.closeDrawerBtn.addEventListener('click', () => {
+        els.utilityDrawer.classList.add('hidden');
+      });
+
+      els.toggleArchiveViewBtn.addEventListener('click', () => {
+        state.showArchived = !state.showArchived;
+        els.toggleArchiveViewBtn.textContent = state.showArchived
+          ? 'Back to Upcoming'
+          : `View Done (${getSortedArchivedOccasions().length})`;
+        els.utilityDrawer.classList.add('hidden');
+        renderAll();
+      });
+
+      els.resetSamplesBtn.addEventListener('click', () => {
+        state.occasions = createSampleOccasions();
+        state.showArchived = false;
+        state.typeFilter = 'all';
+        state.constellationFilter = 'all';
+        state.confirmClearPending = false;
+        els.clearAllBtn.textContent = 'Clear All Upcoming Occasions';
+        saveOccasions();
+        els.utilityDrawer.classList.add('hidden');
+        showBanner('Restored starter sample shows and rehearsals.');
+        renderAll();
+      });
+
+      // Two-step inline confirmation for clearing all upcoming items
+      els.clearAllBtn.addEventListener('click', () => {
+        if (!state.confirmClearPending) {
+          state.confirmClearPending = true;
+          els.clearAllBtn.textContent = 'Tap Again to Confirm Clear';
+          return;
+        }
+        state.occasions = state.occasions.filter((item) => item.archived);
+        state.confirmClearPending = false;
+        els.clearAllBtn.textContent = 'Clear All Upcoming Occasions';
+        saveOccasions();
+        els.utilityDrawer.classList.add('hidden');
+        showBanner('Cleared all upcoming occasions.');
+        renderAll();
+      });
+
+      els.statusBannerDismiss.addEventListener('click', hideBanner);
+
+      document.querySelectorAll('.type-filter-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          state.typeFilter = btn.getAttribute('data-type-filter');
+          renderAll();
+        });
+      });
+
+      els.constellationFilterRow.addEventListener('click', (e) => {
+        const chip = e.target.closest('.constellation-chip');
+        if (!chip) return;
+        state.constellationFilter = chip.getAttribute('data-constellation-chip');
+        renderAll();
+      });
+
+      // Delegated actions on list cards (Edit, Done, Restore, Delete)
+      els.occasionsList.addEventListener('click', (e) => {
+        const editBtn = e.target.closest('.edit-btn');
+        if (editBtn) {
+          const id = editBtn.getAttribute('data-edit-id');
+          const found = state.occasions.find((o) => o.id === id);
+          if (found) openModal(found);
+          return;
+        }
+
+        const archiveBtn = e.target.closest('.archive-btn');
+        if (archiveBtn) {
+          const id = archiveBtn.getAttribute('data-archive-id');
+          state.occasions = state.occasions.map((o) =>
+            o.id === id ? { ...o, archived: true } : o
+          );
+          saveOccasions();
+          showBanner('Marked occasion as done.');
+          renderAll();
+          return;
+        }
+
+        const restoreBtn = e.target.closest('.restore-btn');
+        if (restoreBtn) {
+          const id = restoreBtn.getAttribute('data-restore-id');
+          state.occasions = state.occasions.map((o) =>
+            o.id === id ? { ...o, archived: false } : o
+          );
+          saveOccasions();
+          showBanner('Restored occasion to upcoming.');
+          renderAll();
+          return;
+        }
+
+        const deleteBtn = e.target.closest('.delete-btn');
+        if (deleteBtn) {
+          const id = deleteBtn.getAttribute('data-delete-id');
+          state.occasions = state.occasions.filter((o) => o.id !== id);
+          saveOccasions();
+          showBanner('Deleted occasion.');
+          renderAll();
+        }
+      });
+
+      // Modal controls
+      els.openAddModalBtn.addEventListener('click', () => openModal(null));
+      els.closeModalBtn.addEventListener('click', closeModal);
+      els.cancelFormBtn.addEventListener('click', closeModal);
+
+      els.modal.addEventListener('click', (e) => {
+        if (e.target === els.modal) closeModal();
+      });
+
+      els.typeChoiceShow.addEventListener('click', () => setModalType('show'));
+      els.typeChoiceRehearsal.addEventListener('click', () => setModalType('rehearsal'));
+
+      els.quickConstellationChips.addEventListener('click', (e) => {
+        const chip = e.target.closest('.quick-chip');
+        if (!chip) return;
+        els.constellationInput.value = chip.getAttribute('data-quick-constellation');
+        els.constellationInput.focus();
+      });
+
+      els.form.addEventListener('submit', handleFormSubmit);
+
+      // Initialize app on load
+      window.addEventListener('DOMContentLoaded', () => {
+        loadTheme();
+        loadOccasions();
+        renderAll();
+
+        // Update live countdowns every 30 seconds
+        setInterval(renderAll, 30000);
+      });
+    })();
+  </script>
+</body>
+</html>
