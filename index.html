@@ -3,6 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#020617" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Practice Priority" />
   <title>Setlist Clock — Constellation Countdown</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -114,6 +119,23 @@
           Restore Samples
         </button>
       </div>
+      <div class="grid grid-cols-2 gap-2">
+        <button
+          id="export-json-btn"
+          type="button"
+          class="py-2.5 px-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-emerald-300 transition text-center"
+        >
+          Export Backup
+        </button>
+        <button
+          id="import-json-btn"
+          type="button"
+          class="py-2.5 px-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-sky-300 transition text-center"
+        >
+          Import Backup
+        </button>
+      </div>
+      <input id="import-json-file-input" type="file" accept="application/json,.json" class="hidden" />
       <button
         id="clear-all-btn"
         type="button"
@@ -421,6 +443,9 @@
         toggleArchiveViewBtn: document.getElementById('toggle-archive-view-btn'),
         archivedCountLabel: document.getElementById('archived-count-label'),
         resetSamplesBtn: document.getElementById('reset-samples-btn'),
+        exportJsonBtn: document.getElementById('export-json-btn'),
+        importJsonBtn: document.getElementById('import-json-btn'),
+        importJsonFileInput: document.getElementById('import-json-file-input'),
         clearAllBtn: document.getElementById('clear-all-btn'),
         statusBanner: document.getElementById('status-banner'),
         statusBannerText: document.getElementById('status-banner-text'),
@@ -527,6 +552,12 @@
           }
         });
 
+        // Keep browser/PWA theme-color meta tag in sync with current mode
+        const themeMeta = document.querySelector('meta[name="theme-color"]');
+        if (themeMeta) {
+          themeMeta.setAttribute('content', isDark ? '#020617' : '#f5f5f4');
+        }
+
         try {
           localStorage.setItem(THEME_KEY, isDark ? 'dark' : 'light');
         } catch (_) {
@@ -534,14 +565,249 @@
         }
       }
 
+      /**
+       * Loads saved theme preference from localStorage on startup.
+       */
       function loadTheme() {
         try {
-          const saved = localStorage.getItem(THEME_KEY);
-          state.darkMode = saved === 'light' ? false : true;
+          const savedTheme = localStorage.getItem(THEME_KEY);
+          if (savedTheme === 'light') {
+            state.darkMode = false;
+          } else if (savedTheme === 'dark') {
+            state.darkMode = true;
+          }
         } catch (_) {
-          state.darkMode = true;
+          // Keep default theme if storage is unavailable
         }
         applyTheme();
+      }
+
+      /**
+       * Renders a crisp SVG musical note + countdown clock emblem onto an HTML5 <canvas>
+       * and returns a PNG data URL at the requested square pixel size.
+       */
+      function renderEmblemPngDataUrl(size) {
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return '';
+
+        const pad = size * 0.06;
+        const inner = size - pad * 2;
+        const radius = size * 0.22;
+
+        // Background rounded squircle
+        ctx.fillStyle = '#020617';
+        ctx.beginPath();
+        ctx.roundRect(pad, pad, inner, inner, radius);
+        ctx.fill();
+
+        // Subtle amber ring
+        ctx.strokeStyle = 'rgba(251, 191, 36, 0.45)';
+        ctx.lineWidth = Math.max(2, size * 0.02);
+        ctx.stroke();
+
+        // Crisp SVG musical note & clock hand emblem drawn via Image
+        const svgMarkup = `
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+            <circle cx="64" cy="64" r="40" fill="none" stroke="#fbbf24" stroke-width="7" />
+            <path d="M64 42v24l15 10" fill="none" stroke="#fbbf24" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" />
+            <circle cx="94" cy="34" r="14" fill="#020617" stroke="#fbbf24" stroke-width="5" />
+            <path d="M91 41V28l10-3v11" fill="none" stroke="#fde68a" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        `.trim();
+
+        // Synchronous fallback geometric drawing on canvas in case SVG image load is async
+        const cx = size / 2;
+        const cy = size / 2;
+        const clockR = size * 0.28;
+
+        ctx.strokeStyle = '#fbbf24';
+        ctx.lineWidth = Math.max(3, size * 0.045);
+        ctx.beginPath();
+        ctx.arc(cx, cy, clockR, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - clockR * 0.58);
+        ctx.lineTo(cx, cy);
+        ctx.lineTo(cx + clockR * 0.42, cy + clockR * 0.26);
+        ctx.stroke();
+
+        // Note stem & head accent
+        const noteX = cx + clockR * 0.72;
+        const noteY = cy - clockR * 0.72;
+        ctx.fillStyle = '#fde68a';
+        ctx.beginPath();
+        ctx.ellipse(noteX - size * 0.02, noteY + size * 0.025, size * 0.042, size * 0.03, -0.35, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#fde68a';
+        ctx.lineWidth = Math.max(2, size * 0.024);
+        ctx.beginPath();
+        ctx.moveTo(noteX + size * 0.015, noteY + size * 0.02);
+        ctx.lineTo(noteX + size * 0.015, noteY - size * 0.065);
+        ctx.lineTo(noteX + size * 0.065, noteY - size * 0.08);
+        ctx.stroke();
+
+        // Attempt crisp SVG rasterization into the canvas too
+        const img = new Image();
+        img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgMarkup);
+        if (img.complete && img.naturalWidth > 0) {
+          ctx.clearRect(pad, pad, inner, inner);
+          ctx.fillStyle = '#020617';
+          ctx.beginPath();
+          ctx.roundRect(pad, pad, inner, inner, radius);
+          ctx.fill();
+          ctx.drawImage(img, pad, pad, inner, inner);
+        }
+
+        return canvas.toDataURL('image/png');
+      }
+
+      /**
+       * Injects a dynamic Web App Manifest (<link rel="manifest" href="data:application/manifest+json,...">)
+       * and apple-touch-icon using canvas-generated 192x192 and 512x512 PNG icons so Chrome on Android
+       * supports "Installera" directly from a single index.html file.
+       */
+      function injectPwaManifestAndIcons() {
+        try {
+          const icon192 = renderEmblemPngDataUrl(192);
+          const icon512 = renderEmblemPngDataUrl(512);
+
+          if (icon192) {
+            let appleIcon = document.querySelector('link[rel="apple-touch-icon"]');
+            if (!appleIcon) {
+              appleIcon = document.createElement('link');
+              appleIcon.rel = 'apple-touch-icon';
+              document.head.appendChild(appleIcon);
+            }
+            appleIcon.href = icon192;
+          }
+
+          const icons = [];
+          if (icon192) {
+            icons.push({
+              src: icon192,
+              sizes: '192x192',
+              type: 'image/png',
+              purpose: 'any maskable'
+            });
+          }
+          if (icon512) {
+            icons.push({
+              src: icon512,
+              sizes: '512x512',
+              type: 'image/png',
+              purpose: 'any maskable'
+            });
+          }
+
+          const startUrl = window.location.href.split('#')[0];
+          const manifest = {
+            name: 'Practice Priority — Constellation Countdown',
+            short_name: 'Practice Priority',
+            description: 'Track shows and rehearsals across musical constellations with live countdowns.',
+            start_url: startUrl,
+            scope: startUrl.endsWith('/') ? startUrl : startUrl.substring(0, startUrl.lastIndexOf('/') + 1),
+            display: 'standalone',
+            background_color: '#020617',
+            theme_color: state.darkMode ? '#020617' : '#f5f5f4',
+            icons
+          };
+
+          const manifestHref = 'data:application/manifest+json;charset=utf-8,' + encodeURIComponent(JSON.stringify(manifest));
+          let manifestLink = document.querySelector('link[rel="manifest"]');
+          if (!manifestLink) {
+            manifestLink = document.createElement('link');
+            manifestLink.rel = 'manifest';
+            document.head.appendChild(manifestLink);
+          }
+          manifestLink.href = manifestHref;
+        } catch (err) {
+          showBanner('Could not generate PWA manifest on this browser.');
+        }
+      }
+
+      /**
+       * Exports current occasions (active + archived) as a downloadable JSON backup file.
+       */
+      function exportOccasionsJson() {
+        try {
+          const payload = {
+            app: 'practice-priority-countdown',
+            exportedAt: new Date().toISOString(),
+            occasions: state.occasions
+          };
+          const jsonStr = JSON.stringify(payload, null, 2);
+          const blob = new Blob([jsonStr], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          const dateTag = new Date().toISOString().slice(0, 10);
+          a.href = url;
+          a.download = `practice-priority-backup-${dateTag}.json`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+          showBanner(`Exported ${state.occasions.length} occasion(s) to JSON backup.`);
+        } catch (err) {
+          showBanner('Could not export JSON backup.');
+        }
+      }
+
+      /**
+       * Imports occasions from a JSON backup file and merges/replaces safely.
+       */
+      function handleImportJsonFile(e) {
+        const file = e.target.files && e.target.files[0];
+        e.target.value = '';
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const parsed = JSON.parse(String(reader.result || ''));
+            const rawList = Array.isArray(parsed) ? parsed : (Array.isArray(parsed.occasions) ? parsed.occasions : null);
+            if (!rawList) {
+              showBanner('Backup file did not contain a valid occasions list.');
+              return;
+            }
+
+            const cleaned = rawList
+              .filter((item) => item && typeof item.constellation === 'string' && typeof item.timestamp === 'number' && Number.isFinite(item.timestamp))
+              .map((item, idx) => ({
+                id: typeof item.id === 'string' && item.id ? item.id : `imp-${Date.now()}-${idx}`,
+                constellation: item.constellation.trim(),
+                type: item.type === 'rehearsal' ? 'rehearsal' : 'show',
+                note: typeof item.note === 'string' ? item.note.trim() : '',
+                timestamp: item.timestamp,
+                archived: Boolean(item.archived)
+              }))
+              .filter((item) => item.constellation.length > 0);
+
+            if (cleaned.length === 0) {
+              showBanner('No valid occasions found inside the backup file.');
+              return;
+            }
+
+            // Merge by ID so existing entries aren't lost unless overwritten by matching ID
+            const byId = new Map(state.occasions.map((o) => [o.id, o]));
+            cleaned.forEach((item) => byId.set(item.id, item));
+            state.occasions = Array.from(byId.values());
+            saveOccasions();
+            els.utilityDrawer.classList.add('hidden');
+            showBanner(`Imported ${cleaned.length} occasion(s) from backup.`);
+            renderAll();
+          } catch (err) {
+            showBanner('Could not read JSON backup file.');
+          }
+        };
+        reader.onerror = () => {
+          showBanner('Error reading selected backup file.');
+        };
+        reader.readAsText(file);
       }
 
       /**
@@ -1177,6 +1443,10 @@
         renderAll();
       });
 
+      els.exportJsonBtn.addEventListener('click', exportOccasionsJson);
+      els.importJsonBtn.addEventListener('click', () => els.importJsonFileInput.click());
+      els.importJsonFileInput.addEventListener('change', handleImportJsonFile);
+
       // Two-step inline confirmation for clearing all upcoming items
       els.clearAllBtn.addEventListener('click', () => {
         if (!state.confirmClearPending) {
@@ -1278,6 +1548,7 @@
       window.addEventListener('DOMContentLoaded', () => {
         loadTheme();
         loadOccasions();
+        injectPwaManifestAndIcons();
         renderAll();
 
         // Update live countdowns every 30 seconds
